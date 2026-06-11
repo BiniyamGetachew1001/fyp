@@ -34,6 +34,9 @@ import cv2
 import numpy as np
 from ultralytics import YOLO
 
+from telegram_notify import TelegramNotifier
+import telegram_config
+
 # ============================================================
 #  Wire protocol — MUST match esp32-firmware/include/config.h
 # ============================================================
@@ -243,32 +246,94 @@ def main():
     ap.add_argument("--model", default="yolov8n.pt", help="Ultralytics model")
     ap.add_argument("--imgsz", type=int, default=320, help="YOLO inference size")
     ap.add_argument("--show", action="store_true", help="Show annotated window")
+    ap.add_argument("--telegram", action="store_true",
+                    help="Send a snapshot + status to Telegram every interval")
+    ap.add_argument("--tg-interval", type=float, default=5.0,
+                    help="Seconds between Telegram notifications (default 5)")
+    ap.add_argument("--chat-id", default=None,
+                    help="Telegram chat id (default: auto-discover / env / config)")
+    ap.add_argument("--source", default=None,
+                    help="Video source override: webcam index (e.g. 0) or a file "
+                         "path. Default = the ESP MJPEG stream. Use this to test "
+                         "detection + Telegram WITHOUT the ESP32.")
     args = ap.parse_args()
 
     stream_url = args.url or f"http://{args.esp}/stream"
 
+    # Choose the video source: webcam index, file, or the ESP stream.
+    source = args.source if args.source is not None else stream_url
+    if isinstance(source, str) and source.isdigit():
+        source = int(source)
+
     print(f"[INIT] loading model {args.model} ...")
     model = YOLO(args.model)
 
-    print(f"[INIT] opening stream {stream_url} ...")
-    cap = cv2.VideoCapture(stream_url)
+    print(f"[INIT] opening source: {source!r} ...")
+    cap = cv2.VideoCapture(source)
     # Keep the buffer at 1 so we always process the FRESHEST frame (low latency).
     try:
         cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
     except Exception:
         pass
     if not cap.isOpened():
-        print("[ERROR] could not open stream. Is the ESP32 up and streaming?")
+        print(f"[ERROR] could not open source {source!r}.")
+        print("        - ESP stream: is the board powered/streaming? open it in a browser.")
+        print("        - To test without the ESP, run with:  --source 0   (laptop webcam)")
         sys.exit(1)
+    print("[INIT] source opened OK")
 
     link = CommandLink(args.esp, args.port)
     follower = Follower()
     print(f"[INIT] sending UDP commands to {args.esp}:{args.port}")
+
+    # ── Shared snapshot state for the Telegram thread ──
+    #   GIL makes these single-reference reads/writes atomic; good enough.
+    shared = {
+        "frame": None,        # latest annotated BGR frame
+        "fps": 0.0,
+        "last_cmd": "STOP",
+        "persons": 0,
+        "last_frame_t": 0.0,  # wall time of last decoded frame
+    }
+
+    notifier = None
+    if args.telegram:
+        def build_snapshot():
+            frame = shared["frame"]
+            online = (time.time() - shared["last_frame_t"]) < 3.0 if shared["last_frame_t"] else False
+            stamp = time.strftime("%Y-%m-%d %H:%M:%S")
+            caption = (
+                f"Robot status @ {stamp}\n"
+                f"ESP: {args.esp}  ({'ONLINE' if online else 'OFFLINE / no stream'})\n"
+                f"Stream FPS: {shared['fps']:.1f}\n"
+                f"Persons in view: {shared['persons']}\n"
+                f"Last command: {shared['last_cmd']}"
+            )
+            if frame is None:
+                return None, caption
+            ok, buf = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
+            if not ok:
+                return None, caption
+            return buf.tobytes(), caption
+
+        chat = args.chat_id or telegram_config.CHAT_ID or None
+        notifier = TelegramNotifier(telegram_config.BOT_TOKEN, chat_id=chat)
+        print(f"[TG] person alerts ON — fire on detection, >= {args.tg_interval:.0f}s between alerts")
+        # Startup ping: confirms the bot path works right now, before any detection.
+        if notifier.send_message("Follower started — person alerts active."):
+            print(f"[TG] startup message sent OK (chat_id={notifier.chat_id})")
+        else:
+            print("[TG] startup message FAILED — check token/chat_id "
+                  "(send your bot a /start message once).")
+
     print("[RUN ] Ctrl-C to stop\n")
 
     period = 1.0 / TARGET_HZ
     last_fps_t = time.time()
     frames = 0
+    last_tx = None            # last (cmd,left,right) sent to the ESP
+    nofr = 0                  # consecutive failed frame reads
+    last_nofr_log = 0.0
 
     try:
         while True:
@@ -277,21 +342,60 @@ def main():
             if not ok or frame is None:
                 # Stream hiccup: tell the robot to hold, keep the link alive.
                 link.send(CMD_HOLD, 0, 0)
-                time.sleep(0.01)
+                nofr += 1
+                if time.time() - last_nofr_log > 2.0:
+                    print(f"[WARN] no frame from source ({nofr} consecutive) — "
+                          f"stream down? Telegram alerts need frames to fire.")
+                    last_nofr_log = time.time()
+                time.sleep(0.05)
                 continue
+            if nofr:
+                print(f"[INFO] frames resumed after {nofr} failures")
+                nofr = 0
 
             h, w = frame.shape[:2]
-            result = model.predict(frame, imgsz=args.imgsz, verbose=False)[0]
+            # Detect ONLY the person class; conf-filter at the model level.
+            # result.plot() then draws person bounding boxes (and nothing else).
+            result = model.predict(frame, imgsz=args.imgsz,
+                                   classes=[PERSON_CLASS_ID], conf=CONF_THRESHOLD,
+                                   verbose=False)[0]
             person = largest_person(result, w, h)
 
             cmd, left, right = follower.step(person)
             link.send(cmd, left, right)
+            # Log every motion command we send to the ESP (only when it changes).
+            if (cmd, left, right) != last_tx:
+                print(f"[CMD->ESP {args.esp}:{args.port}] {CMD_NAMES[cmd]:7s} "
+                      f"L={left:3d} R={right:3d}")
+                last_tx = (cmd, left, right)
+
+            # ── Update shared state for the Telegram thread ──
+            shared["last_cmd"] = CMD_NAMES[cmd]
+            shared["last_frame_t"] = time.time()
+            if result.boxes is not None:
+                shared["persons"] = int(sum(
+                    1 for i in range(len(result.boxes))
+                    if int(result.boxes.cls[i].item()) == PERSON_CLASS_ID
+                    and float(result.boxes.conf[i].item()) >= CONF_THRESHOLD
+                ))
+            if args.show or args.telegram:
+                vis = result.plot()
+                cv2.putText(vis, f"{CMD_NAMES[cmd]}  L={left} R={right}", (10, 28),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
+                shared["frame"] = vis
+
+            # ── Telegram: fire the moment a person is detected, then this
+            #    is rate-limited to one alert per --tg-interval (5s) seconds.
+            if notifier is not None and shared["persons"] > 0:
+                if notifier.maybe_send_async(build_snapshot, args.tg_interval):
+                    print(f"[TG] person detected ({shared['persons']}) -> sending snapshot")
 
             # ── Telemetry ──
             frames += 1
             now = time.time()
             if now - last_fps_t >= 1.0:
                 fps = frames / (now - last_fps_t)
+                shared["fps"] = fps
                 if person:
                     cxn, an = person
                     print(f"[{CMD_NAMES[cmd]:7s}] L={left:3d} R={right:3d} | "
@@ -301,13 +405,9 @@ def main():
                 last_fps_t = now
                 frames = 0
 
-            # ── Optional visualisation ──
-            if args.show:
-                vis = result.plot()
-                label = f"{CMD_NAMES[cmd]}  L={left} R={right}"
-                cv2.putText(vis, label, (10, 28), cv2.FONT_HERSHEY_SIMPLEX,
-                            0.9, (0, 255, 0), 2)
-                cv2.imshow("Thinker", vis)
+            # ── Optional visualisation (reuses the annotated frame) ──
+            if args.show and shared["frame"] is not None:
+                cv2.imshow("Thinker", shared["frame"])
                 if cv2.waitKey(1) & 0xFF == ord("q"):
                     break
 
@@ -319,6 +419,8 @@ def main():
     except KeyboardInterrupt:
         print("\n[STOP] interrupted")
     finally:
+        if notifier is not None:
+            notifier.stop()
         link.stop()                 # halt the robot
         cap.release()
         if args.show:

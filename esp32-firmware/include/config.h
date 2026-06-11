@@ -91,3 +91,17 @@ enum CmdKind {
 
 // ── Camera stream ──
 #define STREAM_HTTP_PORT 80
+
+// ============================================================
+//  Static IP (so the stream URL / command target never changes)
+// ============================================================
+//  Set USE_STATIC_IP to 0 to fall back to DHCP. The address MUST be on
+//  the SAME subnet as the AP you connect to, and SHOULD sit outside the
+//  router's DHCP pool to avoid collisions. Values below match the
+//  10.105.3.x / gateway .141 network ("B.'s A35 2" hotspot).
+//  If you move to a different router/subnet, update these (or set 0).
+#define USE_STATIC_IP    1
+#define STATIC_IP_ADDR   10, 105, 3, 180
+#define STATIC_GATEWAY   10, 105, 3, 141
+#define STATIC_SUBNET    255, 255, 255, 0
+#define STATIC_DNS       10, 105, 3, 141

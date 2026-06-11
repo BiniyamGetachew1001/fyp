@@ -139,7 +139,8 @@ In a new terminal:
 
 ```bash
 cd "c:/Users/biniy/Documents/projects/esp32/pc"
-python follower.py --esp 10.105.3.248 --show
+python follower.py --esp 10.105.3.248 --telegram --show
+python follower.py --esp 10.105.3.180 --source 0 --telegram --show
 ```
 python follower.py --esp 192.168.
 Replace `192.168.x.x` with the IP from step 5.

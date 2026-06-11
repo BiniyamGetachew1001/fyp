@@ -51,6 +51,7 @@ desktop.ini
 #  Secrets / local-only config — keep credentials out of git
 # ============================================================
 esp32-firmware/include/wifi_config.h
+pc/telegram_config.py
 
 # ============================================================
 #  Large docs / scratch

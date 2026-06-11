@@ -110,13 +110,21 @@ void setup() {
     Serial.printf("  %d: %s (RSSI %d)\n", i + 1, WiFi.SSID(i).c_str(), WiFi.RSSI(i));
   }
 
-  wifiMulti.addAP("seyay",         "123456780");
-  wifiMulti.addAP("B.'s A35",      "abcd1234");
-  wifiMulti.addAP("Qq", "22222222");
-  // wifiMulti.addAP("qqq", "22222222");
-    wifiMulti.addAP("Qq", "22222222");
+  wifiMulti.addAP("B.'s A35", "abcd1234");   // primary (static IP targets this subnet)
+  wifiMulti.addAP("Qq",         "22222222");
+  wifiMulti.addAP("seyay",      "123456780");
 
 
+
+#if USE_STATIC_IP
+  // Must be set while in STA mode and BEFORE connecting, or DHCP wins.
+  IPAddress _ip(STATIC_IP_ADDR), _gw(STATIC_GATEWAY), _mask(STATIC_SUBNET), _dns(STATIC_DNS);
+  if (!WiFi.config(_ip, _gw, _mask, _dns)) {
+    Serial.println("[WIFI] static IP config FAILED — falling back to DHCP");
+  } else {
+    Serial.printf("[WIFI] static IP requested: %d.%d.%d.%d\n", STATIC_IP_ADDR);
+  }
+#endif
 
   Serial.println("[WIFI] Connecting to strongest AP...");
   unsigned long start = millis();
