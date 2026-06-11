@@ -246,3 +246,31 @@ handler can never starve motor control because the executor is its own task.
 | Robot moves but won't pivot | Raise `TURN_PWM`; raise `MIN_SPEED` in `config.h` if wheels stall |
 | Stops too far / too near | Tune `AREA_CLOSE_FRAC` in `follower.py` |
 ```
+
+
+❯ i am making the documentation there is a folder i am making latex code  paper and the paper is in the Design_and_Development_of_an_AI_Integrated_Autonomous_Robotic_Surveillance_System folder what i went you to is that to help me the main.txt latex code content according to
+AASTU Bachelor Thesis Guide Line.pdf guidline  you can fnd them all in the project file 
+i went the edit only starting from the chpater 4 before that everything is corrected do not change anything before chapter 4 
+
+I am writing my bachelor's thesis in LaTeX and need help updating the `main.tex` file. 
+
+### Project Context
+- **Folder Location:** `Design_and_Development_of_an_AI_Integrated_Autonomous_Robotic_Surveillance_System`
+- **Formatting Guidelines:** Must strictly follow the attached "AASTU Bachelor Thesis Guide Line.pdf".
+
+### Your Task
+Please edit the LaTeX code for `main.tex` starting **only from Chapter 4 onwards** ( as prescribed by the AASTU guideline). 
+
+### Strict Constraints
+1. **Do not modify, overwrite, or include anything before Chapter 4.** Everything prior to Chapter 4 is already finalized and correct.
+2. Ensure the structural layout, font sizes, headings, and citation styles from Chapter 4 to the end perfectly align with the document.
+3. Use images i provide in the folder by reading there names text/comments where specific project data or plots need to be inserted, but ensure the structural LaTeX syntax is complete.
+i also have this Live_camera_view_from_esp.jpg i did not include it is the output of the prototype the camera scan withing the terminal output in once
+
+i past you two imgages of the ros to simulation to telgram send output image ans also from the robot mible esp to telegram output 
+this image are found in the folder with the mnames colled 
+ros_camera_live_view_send_to_telegramjpg
+ros_camera_live_view_send_to_telegram.jpg 
+
+also for the limatation parts tnumber of pins on esp we went to use the encoder but we can't becoe of number of pins avaible include also esp 32 lags becouse it have law ram 
+also include othere limitation by reading and understand the project fully 
