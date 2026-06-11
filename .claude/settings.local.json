@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pio run *)",
+      "Bash(pio device *)",
+      "Bash(python -m py_compile follower.py)",
+      "Bash(python3 -m py_compile follower.py)",
+      "Bash(powershell.exe -NoProfile -Command 'Get-PnpDevice | Where-Object { $_.InstanceId -like '\\\\''*VID_0403*'\\\\'' -or $_.FriendlyName -like '\\\\''*FT232*'\\\\'' -or $_.FriendlyName -like '\\\\''*UART*'\\\\'' -or $_.FriendlyName -like '\\\\''*CP210*'\\\\'' -or $_.FriendlyName -like '\\\\''*CH340*'\\\\'' } | Select-Object Status,Class,FriendlyName,InstanceId | Format-List')",
+      "Bash(powershell.exe -NoProfile -Command 'Get-PnpDevice -PresentOnly | Where-Object { $_.InstanceId -like '\\\\''*VID_0403*'\\\\'' } | Select-Object Status,Problem,ProblemDescription,FriendlyName | Format-List; Write-Output '\\\\''--- present serial ports ---'\\\\''; Get-PnpDevice -PresentOnly -Class Ports | Select-Object Status,FriendlyName | Format-List')"
+    ]
+  }
+}

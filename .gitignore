@@ -1,0 +1,60 @@
+# ============================================================
+#  PlatformIO / ESP32 firmware build artifacts
+# ============================================================
+.pio/
+.pioenvs/
+.piolibdeps/
+esp32-firmware/.pio/
+*.elf
+*.bin
+*.hex
+*.map
+build.log
+
+# ============================================================
+#  Python / PC "Thinker"
+# ============================================================
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+ENV/
+.Python
+*.egg-info/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# ── YOLO / Ultralytics model weights & runs (large, auto-downloaded) ──
+*.pt
+*.onnx
+*.engine
+runs/
+
+# ============================================================
+#  Editor / IDE
+# ============================================================
+.vscode/
+.idea/
+*.swp
+*~
+
+# ============================================================
+#  OS junk
+# ============================================================
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ============================================================
+#  Secrets / local-only config — keep credentials out of git
+# ============================================================
+esp32-firmware/include/wifi_config.h
+
+# ============================================================
+#  Large docs / scratch
+# ============================================================
+Design_and_Development_of_an_AI_Integrated_Autonomous_Robotic_Surveillance_System.pdf
+tmp_pdf_extract.py
+*.tmp
