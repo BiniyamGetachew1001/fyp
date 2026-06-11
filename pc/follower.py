@@ -88,6 +88,11 @@ CONF_THRESHOLD   = 0.40
 # Control loop pacing target (also the command send rate to the ESP).
 TARGET_HZ        = 30
 
+# Swap left/right motors. The camera image is mirrored, so the robot was
+# turning the wrong way; swapping the wheel outputs flips pivots AND the
+# advance heading-trim together, consistently. Set False to disable.
+SWAP_MOTORS      = True
+
 
 # ============================================================
 #  EMA filter
@@ -362,6 +367,12 @@ def main():
             person = largest_person(result, w, h)
 
             cmd, left, right = follower.step(person)
+            if SWAP_MOTORS:
+                left, right = right, left
+                if cmd == CMD_PIVOT_LEFT:
+                    cmd = CMD_PIVOT_RIGHT
+                elif cmd == CMD_PIVOT_RIGHT:
+                    cmd = CMD_PIVOT_LEFT
             link.send(cmd, left, right)
             # Log every motion command we send to the ESP (only when it changes).
             if (cmd, left, right) != last_tx:
